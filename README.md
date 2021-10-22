@@ -3,6 +3,8 @@ jupyter_grade_server
 
 An EdX auto grading server for Jupyter notebooks based on [xqueue_watcher](https://github.com/edx/xqueue-watcher), an implementation of a polling [XQueue](https://github.com/edx/xqueue) client and grader.
 
+Main project: [edx_notebook_grader](https://github.com/cduck/edx_notebook_grader)
+
 
 Running
 =======
