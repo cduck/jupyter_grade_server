@@ -50,9 +50,7 @@ def get_feedback(lab_name):
                 colored = color_converter.convert(out_str, full=False)
                 out_html = f'''<pre>{colored}</pre>'''
                 break
-        return f'''
-        {out_html}
-        '''
+        return out_html
 
     def formatted_test_output(cell, whole_traceback=False):
         max_points = cell['metadata']['nbgrader'].get('points', 0)
