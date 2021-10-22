@@ -33,5 +33,5 @@ setup(
         'Framework :: IPython',
         'Framework :: Jupyter',
     ],
-    install_requires=open('requirements/production.txt', 'rb').readlines()
+    ###install_requires=open('requirements/production.txt', 'r').readlines()
 )
