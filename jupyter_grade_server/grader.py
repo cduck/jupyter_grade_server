@@ -85,6 +85,7 @@ class Grader:
 <h4>Tips</h4>
 <ul>
 <li>Before you submit, make sure everything runs as expected.  From the Jupyter menu bar select <b>Kernel > Restart &amp; Run All</b>.</li>
+<li>Remember to save the notebook before uploading the file.</li>
 <li>Check that your installed version of each Python package is the correct version.  Run <pre>!pip show package_name
 !pip install package_name==1.2.3</pre></li>
 <li>If many tests in a row fail, an error while executing the solution right before may prevent all these tests from completing.  Check for typos or mistakes in the solution.</li>
