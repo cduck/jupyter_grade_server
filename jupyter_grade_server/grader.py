@@ -10,6 +10,14 @@ from path import Path
 import logging
 import multiprocessing
 from statsd import statsd
+from urllib.request import urlretrieve
+import urllib.error
+import tempfile
+import operator
+import string
+import os
+
+from . import nbgrader
 
 
 def format_errors(errors):
@@ -42,46 +50,49 @@ def to_dict(result):
 class Grader:
     results_template = """
 <div class="test">
-<header>Test results</header>
+<h3>Notebook output and hidden test results:</h3>
   <section>
     <div class="shortform">
-    {status}
+      <br>
+      {status}
     </div>
     <div class="longform">
       {errors}
       {results}
+      <br>
     </div>
   </section>
 </div>
 """
 
-    results_correct_template = """
-  <div class="result-output result-correct">
-    <h4>{short-description}</h4>
-    <pre>{long-description}</pre>
-    <dl>
-    <dt>Output:</dt>
-    <dd class="result-actual-output">
-       <pre>{actual-output}</pre>
-       </dd>
-    </dl>
-  </div>
+    results_error_template = """
+<div class="test">
+<h3>Error during grading:</h3>
+  <section>
+    <div class="shortform">
+      <br>
+      {errors}
+    </div>
+    <div class="longform">
+      {results}
+      <br>
+    </div>
+  </section>
+</div>
 """
 
-    results_incorrect_template = """
-  <div class="result-output result-incorrect">
-    <h4>{short-description}</h4>
-    <pre>{long-description}</pre>
-    <dl>
-    <dt>Your output:</dt>
-    <dd class="result-actual-output"><pre>{actual-output}</pre></dd>
-    <dt>Correct output:</dt>
-    <dd><pre>{expected-output}</pre></dd>
-    </dl>
-  </div>
-"""
+    debugging_tips = '''
+<hr>
+<h4>Tips</h4>
+<ul>
+<li>Before you submit, make sure everything runs as expected.  From the Jupyter menu bar select <b>Kernel > Restart &amp; Run All</b>.</li>
+<li>Check that your installed version of each Python package is the correct version.  Run <pre>!pip show package_name
+!pip install package_name==1.2.3</pre></li>
+<li>If many tests in a row fail, an error while executing the solution right before may prevent all these tests from completing.  Check for typos or mistakes in the solution.</li>
+</ul>
+'''
 
-    def __init__(self, grader_root='/tmp/', fork_per_item=True, logger_name=__name__):
+    def __init__(self, grader_root='/tmp/', fork_per_item=True, logger_name=__name__, **kwargs):
         """
         grader_root = root path to graders
         fork_per_item = fork a process for every request
@@ -91,6 +102,8 @@ class Grader:
         self.grader_root = Path(grader_root)
 
         self.fork_per_item = fork_per_item
+
+        self.start_dir = Path(os.getcwd())
 
     def __call__(self, content):
         if self.fork_per_item:
@@ -106,8 +119,119 @@ class Grader:
         else:
             return self.process_item(content)
 
-    def grade(self, grader_path, grader_config, student_response):
-        raise NotImplementedError("no grader defined")
+    def _grade_failed_result(self, error_code, priv_msg='', pub_msg='Internal grader error', contact=True, e=None):
+        self.log.warning(f'GRADER ERROR {error_code}: {priv_msg} ({repr(e)})')
+        if contact:
+            msg = (f'Please contact the course administrators to fix the problem, '
+                   f'along with the following information: <pre>{pub_msg} '
+                   f'({time.ctime()}, error code {error_code})</pre>')
+        else:
+            msg = pub_msg
+        return {
+            'grader-failed': True,
+            'grader-error-msg': msg,
+            'points': 0,
+            'possible': 100,
+            'score': 0,
+            'feedback-html': '',
+        }
+
+    def _grade(self, grader_config, files, tmpdir):
+        tmpdir = Path(tmpdir)
+        self.log.info('GRADING START')
+
+        # Parse input config
+        try:
+            prob_name = str(grader_config['name'])
+            # Sanitize for the file system
+            allowed = string.digits + string.ascii_letters + '-_ '
+            prob_name = ''.join(filter(allowed.__contains__, prob_name))
+
+            file_url = str(files[prob_name+'.ipynb'])
+            # Sanitize to ensure only a public URL
+            if not file_url.startswith('https://'):
+                return self._grade_failed_result(312,
+                        'invalid submitted file download URL ({file_url})',
+                        e=e)
+        except KeyError as e:
+            return self._grade_failed_result(323,
+                    'incorrect grader content from the XQueue ({grader_config}, {files})',
+                    e=e)
+
+        # Init file structure in the temp dir
+        self._prepare_tmpdir(tmpdir, prob_name)
+        download_path = tmpdir / 'submitted' / 'student' / prob_name / prob_name+'.ipynb'
+
+        # Download student submission notebook to the temp dir
+        try:
+            exc = AssertionError('this error cannot be thrown')
+            for i in range(3):  # Three tries in case of network interruption
+                if i > 0:
+                    time.sleep(5)  # Wait before retrying
+                try:
+                    student_file, headers = urlretrieve(file_url, download_path)
+                    exc = None
+                    break
+                except urllib.error.URLError as e:
+                    exc = e
+                    self.log.warning(f'Submitted file download error (retrying): {repr(e)}')
+            if exc is not None:
+                raise exc
+        except OSError as e:  # OSError is a parent class of all urllib errors
+            return self._grade_failed_result(950,
+                    f'cannot download submitted file from the XQueue ({file_url})',
+                    e=e)
+
+        # Call out to nbgrader to do the grading
+        tmpdir.chdir()
+        try:
+            nbgrader.autograde(prob_name)
+            feedback_html = nbgrader.get_feedback(prob_name)
+            points, max_points = nbgrader.get_grade(prob_name)
+        except Exception as e:
+            return self._grade_failed_result(383,
+                    f'error during nbgrader auto-grading, feedback generation, or grade output',
+                    f'An error occurred during grading.  Your code may have taken too long to run or used too much memory.',
+                    contact=False,
+                    e=e)
+        finally:
+            self.start_dir.chdir()
+
+        # For debugging
+        #import subprocess
+        #subprocess.call('bash')
+
+        tips = ''
+        if points < max_points:
+            tips = self.debugging_tips
+
+        # Return results
+        self.log.info('GRADING SUCCESS')
+        return {
+            'grader-failed': False,
+            'grader-error-msg': '',
+            'points': points,
+            'possible': max_points,
+            'score': points/max_points,
+            'feedback-html': f'<b>Feedback:</b>{feedback_html}{tips}',
+        }
+
+    def _prepare_tmpdir(self, tmpdir, prob_name):
+        # Make location for the submitted file
+        (tmpdir / 'submitted').mkdir()
+        (tmpdir / 'submitted' / 'student').mkdir()
+        (tmpdir / 'submitted' / 'student' / prob_name).mkdir()
+        # Copy template database
+        relocate = self.start_dir / 'relocate'
+        (relocate / 'gradebook.db').copy(tmpdir / 'gradebook.db')
+        # Symlink grader files
+        (relocate / 'nbgrader_config.py').symlink(tmpdir / 'nbgrader_config.py')
+        (relocate / 'source').symlink(tmpdir / 'source')
+        (relocate / 'release').symlink(tmpdir / 'release')
+
+    def grade(self, grader_config, files):
+        with tempfile.TemporaryDirectory(prefix='notebook-grader-') as tmpdir:
+            return self._grade(grader_config, files, tmpdir)
 
     def process_item(self, content, queue=None):
         try:
@@ -117,7 +241,8 @@ class Grader:
 
             # Delivery from the lms
             body = json.loads(body)
-            student_response = body['student_response']
+            files = json.loads(files)
+            #student_response = body['student_response']
             payload = body['grader_payload']
             try:
                 grader_config = json.loads(payload)
@@ -129,18 +254,20 @@ class Grader:
                 self.log.debug(f"error parsing: '{payload}' -- {err}")
                 raise
 
-            self.log.debug(f"Processing submission, grader payload: {payload}")
-            relative_grader_path = grader_config['grader']
-            grader_path = (self.grader_root / relative_grader_path).abspath()
+            #self.log.debug(f"Processing submission, grader payload: {payload}")
+            #relative_grader_path = grader_config['grader']
+            #grader_path = (self.grader_root / relative_grader_path).abspath()
             start = time.time()
-            results = self.grade(grader_path, grader_config, student_response)
+            results = self.grade(grader_config, files)
 
             statsd.histogram('xqueuewatcher.grading-time', time.time() - start)
 
             # Make valid JSON message
-            reply = {'correct': results['correct'],
-                     'score': results['score'],
-                     'msg': self.render_results(results)}
+            reply = {
+                'correct': results['points'] >= results['possible'],
+                'score': results['score'],
+                'msg': self.render_results(results),
+            }
 
             statsd.increment('xqueuewatcher.replies (non-exception)')
         except Exception as e:
@@ -155,23 +282,19 @@ class Grader:
             return reply
 
     def render_results(self, results):
-        output = []
-        test_results = [to_dict(r) for r in results['tests']]
-        for result in test_results:
-            if result['correct']:
-                template = self.results_correct_template
+        if results['grader-failed']:
+            status = 'GRADING ERROR'
+            template = self.results_error_template
+        else:
+            template = self.results_template
+            if results['points'] >= results['possible']:
+                label = 'Correct'
+            elif results['points'] > 0:
+                label = 'Partially correct'
             else:
-                template = self.results_incorrect_template
-            output += template.format(**result)
-
-        errors = format_errors(results['errors'])
-
-        status = 'INCORRECT'
-        if errors:
-            status = 'ERROR'
-        elif results['correct']:
-            status = 'CORRECT'
-
-        return self.results_template.format(status=status,
-                                            errors=errors,
-                                            results=''.join(output))
+                label = 'Incorrect'
+            status = ('{label}<br />Total score: {score:.0%} ({points}/{possible})'
+                      .format(label=label, **results))
+        return template.format(status=status,
+                               errors=results['grader-error-msg'] or '',
+                               results=results['feedback-html'] or '')
