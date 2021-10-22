@@ -95,7 +95,8 @@ and copy your solutions into the fresh notebook.
 <hr>
 '''
     for cell in release_nb['cells']:
-        if cell.get('metadata', {}).get('nbgrader', {}).get('grade', False):
+        if (cell.get('metadata', {}).get('nbgrader', {}).get('grade', False)
+                and cell['metadata']['nbgrader'].get('points', 0) > 0):
             test_id = cell['metadata']['nbgrader'].get('grade_id')
             if test_id:
                 pnumber = cell['metadata']['nbgrader'].get('grade_id', ''
@@ -105,7 +106,8 @@ and copy your solutions into the fresh notebook.
     others_out = []
     pre_output = ''
     for cell in nb['cells']:
-        if cell.get('metadata', {}).get('nbgrader', {}).get('grade', False):
+        if (cell.get('metadata', {}).get('nbgrader', {}).get('grade', False)
+                and cell['metadata']['nbgrader'].get('points', 0) > 0):
             test_id = cell['metadata']['nbgrader'].get('grade_id', 'unknown')
             if pre_output:
                 pre_output = '<h4>Other Errors</h4>\n' + pre_output
