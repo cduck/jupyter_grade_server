@@ -107,6 +107,8 @@ and copy your solutions into the fresh notebook.
     for cell in nb['cells']:
         if cell.get('metadata', {}).get('nbgrader', {}).get('grade', False):
             test_id = cell['metadata']['nbgrader'].get('grade_id', 'unknown')
+            if pre_output:
+                pre_output = '<h4>Other Errors</h4>\n' + pre_output
             test_out = pre_output + formatted_test_output(cell)
             pre_output = ''
             if test_id in test_id_map:
