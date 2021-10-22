@@ -82,7 +82,6 @@ class Grader:
 """
 
     debugging_tips = '''
-<hr>
 <h4>Tips</h4>
 <ul>
 <li>Before you submit, make sure everything runs as expected.  From the Jupyter menu bar select <b>Kernel > Restart &amp; Run All</b>.</li>

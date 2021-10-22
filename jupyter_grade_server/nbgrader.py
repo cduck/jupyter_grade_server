@@ -92,6 +92,7 @@ You probably deleted the cell containing this test.
 To fix this, download a fresh copy of the notebook file
 and copy your solutions into the fresh notebook.
 </pre>
+<hr>
 '''
     for cell in release_nb['cells']:
         if cell.get('metadata', {}).get('nbgrader', {}).get('grade', False):
