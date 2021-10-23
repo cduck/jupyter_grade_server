@@ -188,6 +188,10 @@ class Grader:
             nbgrader.autograde(prob_name)
             feedback_html = nbgrader.get_feedback(prob_name)
             points, max_points = nbgrader.get_grade(prob_name)
+            if int(points) == points:
+                points = int(points)
+            if int(max_points) == max_points:
+                max_points = int(max_points)
         except Exception as e:
             return self._grade_failed_result(383,
                     f'error during nbgrader auto-grading, feedback generation, or grade output',
