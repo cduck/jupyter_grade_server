@@ -213,7 +213,7 @@ class Grader:
             'points': points,
             'possible': max_points,
             'score': points/max_points,
-            'feedback-html': f'<b>Feedback:</b>{feedback_html}{tips}',
+            'feedback-html': f'{feedback_html}{tips}',
         }
 
     def _prepare_tmpdir(self, tmpdir, prob_name):
@@ -293,7 +293,7 @@ class Grader:
                 label = 'Partially correct'
             else:
                 label = 'Incorrect'
-            status = ('{label}<br />Total score: {score:.0%} ({points}/{possible})'
+            status = ('<b>{label}<br />Total score: {score:.0%} ({points}/{possible})</b>'
                       .format(label=label, **results))
         return template.format(status=status,
                                errors=results['grader-error-msg'] or '',
