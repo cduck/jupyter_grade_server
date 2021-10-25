@@ -6,32 +6,19 @@ import nbformat
 import ansi2html
 
 from nbgrader.apps.autogradeapp import AutogradeApp
-from nbgrader.apps.generatefeedbackapp import GenerateFeedbackApp
-from nbgrader.api import Gradebook, InvalidEntry
+from nbgrader.converters import Autograde
+from nbgrader.api import Gradebook
 
 
 def autograde(lab_name):
     grader = AutogradeApp()
+    # Override methods with unwanted side effects
     grader.init_syspath = lambda:None
-    grader.initialize([lab_name])
-    grader.start()
-
-#def _html_page_to_iframe(page):
-#    STRIP_CHARS = ('\x00\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f\x10\x11'
-#                   '\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f')
-#    search = re.compile('|'.join(STRIP_CHARS))
-#    data_safe = search.sub('', page)
-#    b64 = base64.b64encode(data_safe.encode())
-#    page_data_url = 'data:text/html;base64,' + b64.decode(encoding='ascii')
-#    return f'''<iframe height="1000" width="100%" src={page_data_url}></iframe>'''
-#
-#def get_feedback(lab_name):
-#    gen = GenerateFeedbackApp()
-#    gen.init_syspath = lambda:None
-#    gen.initialize([lab_name])
-#    gen.start()
-#    page = (Path() / 'feedback' / 'student' / lab_name / f'{lab_name}.html').read_text()
-#    return _html_page_to_iframe(page)
+    grader.fail = grader.log.error
+    # Run
+    super(AutogradeApp, grader).start()
+    converter = Autograde(coursedir=self.coursedir, parent=self)
+    converter.start()
 
 def get_feedback(lab_name):
     nb = nbformat.read(Path() / 'autograded' / 'student' / lab_name / f'{lab_name}.ipynb', as_version=4)

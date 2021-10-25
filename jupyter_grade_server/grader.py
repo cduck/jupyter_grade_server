@@ -116,7 +116,7 @@ class Grader:
                 reply = q.get_nowait()
             except Exception as e:
                 results = self._grade_failed_result(903,
-                        f'queue wait error',
+                        f'queue wait error ({content})',
                         e=e)
                 return {
                     'correct': results['points'] >= results['possible'],
@@ -126,7 +126,7 @@ class Grader:
             if isinstance(reply, Exception):
                 #raise reply
                 results = self._grade_failed_result(914,
-                        f'uncaught error occurred',
+                        f'uncaught error occurred ({content})',
                         e=e)
                 return {
                     'correct': results['points'] >= results['possible'],
