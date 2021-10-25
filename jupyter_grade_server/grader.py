@@ -16,6 +16,7 @@ import tempfile
 import operator
 import string
 import os
+import json
 
 from . import nbgrader
 
@@ -111,9 +112,27 @@ class Grader:
             proc = multiprocessing.Process(target=self.process_item, args=(content, q))
             proc.start()
             proc.join()
-            reply = q.get_nowait()
+            try:
+                reply = q.get_nowait()
+            except Exception as e:
+                results = self._grade_failed_result(903,
+                        f'queue wait error',
+                        e=e)
+                return {
+                    'correct': results['points'] >= results['possible'],
+                    'score': results['score'],
+                    'msg': self.render_results(results),
+                }
             if isinstance(reply, Exception):
-                raise reply
+                #raise reply
+                results = self._grade_failed_result(914,
+                        f'uncaught error occurred',
+                        e=e)
+                return {
+                    'correct': results['points'] >= results['possible'],
+                    'score': results['score'],
+                    'msg': self.render_results(results),
+                }
             else:
                 return reply
         else:
@@ -181,6 +200,25 @@ class Grader:
             return self._grade_failed_result(950,
                     f'cannot download submitted file from the XQueue ({file_url})',
                     e=e)
+        try:
+            with open(download_path, 'r') as f:
+                json.load(f)  # Test if able to read and parse as JSON
+        except UnicodeDecodeError as e:
+            return self._grade_failed_result(669,
+                    f'cannot parse JSON of submitted file ({file_url})',
+                    'An error occurred during grading.  You may have submitted the wrong file or the file is corrupted.',
+                    contact=False,
+                    e=e)
+        except json.JSONDecodeError as e:
+            return self._grade_failed_result(788,
+                    f'cannot parse JSON of submitted file ({file_url}, {open(download_path).read(50)!r})',
+                    'An error occurred during grading.  You may have submitted the wrong file or the file is corrupted.',
+                    contact=False,
+                    e=e)
+        except (OSError, Exception) as e:
+            return self._grade_failed_result(370,
+                    f'cannot read submitted file from disk ({file_url})',
+                    e=e)
 
         # Call out to nbgrader to do the grading
         tmpdir.chdir()
@@ -192,10 +230,10 @@ class Grader:
                 points = int(points)
             if int(max_points) == max_points:
                 max_points = int(max_points)
-        except Exception as e:
+        except BaseException as e:
             return self._grade_failed_result(383,
-                    f'error during nbgrader auto-grading, feedback generation, or grade output',
-                    f'An error occurred during grading.  Your code may have taken too long to run or used too much memory.',
+                    'error during nbgrader auto-grading, feedback generation, or grade output',
+                    'An error occurred during grading.  You may have submitted the wrong file or your code may have taken too long to run or used too much memory.',
                     contact=False,
                     e=e)
         finally:
