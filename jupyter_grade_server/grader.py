@@ -232,8 +232,13 @@ class Grader:
                 max_points = int(max_points)
         except BaseException as e:
             return self._grade_failed_result(383,
-                    'error during nbgrader auto-grading, feedback generation, or grade output',
-                    'An error occurred during grading.  You may have submitted the wrong file or your code may have taken too long to run or used too much memory.',
+                    ('error during nbgrader auto-grading, feedback generation, '
+                     'or grade output'),
+                    ('An error occurred during grading.  If this message '
+                     'appeared soon after clicking submit, you may have '
+                     'submitted the wrong file or a corrupt file.  Otherwise '
+                     'your code may have taken too long to run or used too '
+                     'much memory.'),
                     contact=False,
                     e=e)
         finally:
