@@ -16,8 +16,11 @@ def autograde(lab_name):
     grader.init_syspath = lambda:None
     grader.fail = grader.log.error
     # Run
+    grader.initialize([lab_name])
     super(AutogradeApp, grader).start()
-    converter = Autograde(coursedir=self.coursedir, parent=self)
+    if len(grader.extra_args) == 1:
+        grader.coursedir.assignment_id = grader.extra_args[0]
+    converter = Autograde(coursedir=grader.coursedir, parent=grader)
     converter.start()
 
 def get_feedback(lab_name):
