@@ -106,7 +106,9 @@ and copy your solutions into the fresh notebook.
             else:
                 others_out.append(test_out)
         else:
-            pre_output += formatted_error_output(cell)
+            is_test = cell.get('metadata', {}).get('nbgrader', {}).get(
+                    'grade', False)
+            pre_output += formatted_error_output(cell, not is_test)
     # Ignoring trailing pre_output value
 
     all_html = (
